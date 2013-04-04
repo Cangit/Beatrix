@@ -161,7 +161,7 @@ class Application extends Pimple
                 $Locator = new \Symfony\Component\Config\FileLocator([WEB_ROOT.'/app/config/']);
                 $Context = new \Symfony\Component\Routing\RequestContext($this['request']);
 
-                if ($this->setting('cache')){
+                if ($this->setting('cache') && $this->setting('cache.routes')){
                     $Router = new \Symfony\Component\Routing\Router(
                         new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator),
                         'routes.yml',
