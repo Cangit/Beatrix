@@ -149,6 +149,8 @@ class Application extends Pimple
     {
         $Loader = $this['classLoader'];
         $Loader->registerNamespace( 'src' , WEB_ROOT);
+        $Loader->registerNamespace( 'controller' , WEB_ROOT.'/src');
+        $Loader->registerNamespace( 'model' , WEB_ROOT.'/src');
         $Loader->register();
 
         if (!is_readable(WEB_ROOT.'/src/routes/index.yml')){
