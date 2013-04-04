@@ -153,25 +153,25 @@ class Application extends Pimple
         $Loader->registerNamespace( 'model' , WEB_ROOT.'/src');
         $Loader->register();
 
-        if (!is_readable(WEB_ROOT.'/src/routes/index.yml')){
-            $this['logger']->warning('Could not locate/read routes file. Looked for src/routes/index.yml');
+        if (!is_readable(WEB_ROOT.'/app/config/routes.yml')){
+            $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             new LoadFail('500', $this);
         } else {
             try{
-                $Locator = new \Symfony\Component\Config\FileLocator([WEB_ROOT.'/src/routes/']);
+                $Locator = new \Symfony\Component\Config\FileLocator([WEB_ROOT.'/app/config/']);
                 $Context = new \Symfony\Component\Routing\RequestContext($this['request']);
 
                 if ($this->setting('cache')){
                     $Router = new \Symfony\Component\Routing\Router(
                         new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator),
-                        'index.yml',
+                        'routes.yml',
                         ['cache_dir' => WEB_ROOT.'/app/cache/beatrix'],
                         $Context
                     );
                 } else {
                     $Router = new \Symfony\Component\Routing\Router(
                         new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator),
-                        'index.yml',
+                        'routes.yml',
                         [],
                         $Context
                     );
@@ -179,11 +179,11 @@ class Application extends Pimple
 
                 $attributes = $Router->match($this['request']->getPathInfo());
                 $this['request']->attributes->add($Router->match($this['request']->getPathInfo()));
-                $controller = "src\\controller\\".$attributes['_controller'];
+                $controller = "controller\\".$attributes['_controller'];
                 $this->createController($controller);
 
             } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException $e) {
-                $this['logger']->info(sprintf('Did not find a route matching input "%s", using src/routes/index.yml', $this['request']->getPathInfo()));
+                $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 new LoadFail('404', $this, 'routes');
             } catch (\InvalidArgumentException $e){
                 $this['logger']->error('InvalidArgumentException thrown when trying to load resource: '.$this['request']->getPathInfo());
