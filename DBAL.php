@@ -5,9 +5,10 @@ namespace Cangit\Beatrix;
 class DBAL
 {
 
-    private $handle = [];
+    private $handles = [];
     private $activeHandle = 'default';
     private $cache;
+    private $logger;
     
     public function __construct(Cache\CacheInterface $cache, $logger)
     {
@@ -21,8 +22,8 @@ class DBAL
             $handle = $this->activeHandle;
         }
 
-        if (isset($this->handle[$handle])){
-            return $this->handle[$handle];
+        if (isset($this->handles[$handle])){
+            return $this->handles[$handle];
         }
 
         if (!is_string($handle)){
@@ -78,17 +79,17 @@ class DBAL
 
         $params = ['pdo' => $dbh];
         $dbh = \Doctrine\DBAL\DriverManager::getConnection($params);
-        $this->handle[$handle] = $dbh;
-        return $this->handle[$handle];
+        $this->handles[$handle] = $dbh;
+        return $this->handles[$handle];
     }
     
     public function closeHandle($attrHandle='default')
     {
-        if (!isset($this->handle[$attrHandle])){
+        if (!isset($this->handles[$attrHandle])){
             throw new \Exception('Tried closing a handle that does not exist.', E_WARNING);
         }
 
-        $this->handle[$attrHandle] = null;
+        $this->handles[$attrHandle] = null;
     }
 
 }

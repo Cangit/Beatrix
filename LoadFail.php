@@ -5,6 +5,9 @@ namespace Cangit\Beatrix;
 class LoadFail
 {
 
+    private $app;
+    private $reason;
+
     function __construct($code, $app, $reason=null)
     {
         $this->app = $app;
