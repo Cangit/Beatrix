@@ -1,5 +1,5 @@
 {
-    "name": "Cangit/Beatrix",
+    "name": "cangit/beatrix",
     "require": {
         "php": ">=5.4.0",
         "monolog/monolog": "1.*",
