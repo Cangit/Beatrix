@@ -225,7 +225,7 @@ class Application extends Pimple
         return new \Symfony\Component\HttpFoundation\BinaryFileResponse($file, $status, $headers, true, $contentDisposition);
     }
 
-    public function createController($controller)
+    private function createController($controller)
     {
         if (!class_exists($controller)){
             $this['logger']->notice('Could not find controller '.$controller);
@@ -290,9 +290,8 @@ class Application extends Pimple
                         $responseObj = $this->Controller->$requestMethod($attr[0]);
                     }
                     if (is_object($responseObj)){
-                        $responseObj->setProtocolVersion('1.1');
                         $this['logger']->notice('Executed in '. number_format(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 4) . 's');
-                        $responseObj->prepare( $this['request'] )->send();
+                        $this->prepareAndSend($responseObj);
                     }
                 } else {
                     $headers = $this->compileAllowHeaders();
