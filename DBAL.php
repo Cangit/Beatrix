@@ -50,7 +50,8 @@ class DBAL
         if(!is_string($setHandle)){
             throw new \InvalidArgumentException(sprintf("Wrong argument type passed to setHandle(). Expecting string, was '%s' ", gettype($setHandle)), E_ERROR);
         }
-        return $this->activeHandle = $setHandle;
+
+        $this->activeHandle = $setHandle;
     }
     
     public function createHandle($handle, $connectionStr, $username, $password, $attributes = [])
@@ -83,8 +84,12 @@ class DBAL
         return $this->handles[$handle];
     }
     
-    public function closeHandle($attrHandle='default')
+    public function closeHandle($attrHandle = null)
     {
+        if($attrHandle === null){
+            $attrHandle = $activeHandle;
+        }
+
         if (!isset($this->handles[$attrHandle])){
             throw new \Exception('Tried closing a handle that does not exist.', E_WARNING);
         }
