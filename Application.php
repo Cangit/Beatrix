@@ -155,7 +155,8 @@ class Application extends Pimple
 
         if (!is_readable(WEB_ROOT.'/app/config/routes.yml')){
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
-            new LoadFail('500', $this);
+            $loadFail = new LoadFail('500', $this);
+            $loadFail->run();
         } else {
             try{
                 $Locator = new \Symfony\Component\Config\FileLocator([WEB_ROOT.'/app/config/']);
@@ -180,18 +181,25 @@ class Application extends Pimple
                 $attributes = $Router->match($this['request']->getPathInfo());
                 $this['request']->attributes->add($Router->match($this['request']->getPathInfo()));
                 $controller = "controller\\".$attributes['_controller'];
-                $this->createController($controller);
 
             } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException $e) {
                 $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
-                new LoadFail('404', $this, 'routes');
+                $loadFail = new LoadFail('404', $this);
+                $loadFail->debug(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
+                $loadFail->debug("We dumped the contents of 'app/config/routes.yml' to make the debugging easier.\n\n==========");
+                $loadFail->debug(htmlentities(file_get_contents(WEB_ROOT.'/app/config/routes.yml')));
+                $loadFail->run();
             } catch (\InvalidArgumentException $e){
                 $this['logger']->error('InvalidArgumentException thrown when trying to load resource: '.$this['request']->getPathInfo());
-                new LoadFail('500', $this);
+                $loadFail = new LoadFail('500', $this);
+                $loadFail->run();
             } catch (\Exception $e) {
-                $this['logger']->error('Exception thrown when trying to load resource. Probably malformed routes.yml file.');
-                new LoadFail('500', $this);
+                $this['logger']->error('Exception thrown when trying to load resource. Probably syntax error in routes.yml file.');
+                $loadFail = new LoadFail('500', $this);
+                $loadFail->run();
             }
+
+            $this->createController($controller);
 
         }
 
@@ -228,8 +236,21 @@ class Application extends Pimple
     private function createController($controller)
     {
         if (!class_exists($controller)){
-            $this['logger']->notice('Could not find controller '.$controller);
-            new LoadFail('500', $this);
+            $filePath = str_replace('\\', '/', $controller);
+            $file = 'src/'.$filePath.'.php';
+            $loadFail = new LoadFail('500', $this);
+
+            if(!file_exists($file)){
+                $this['logger']->error(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
+                $loadFail->debug(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
+            } else {
+                $this['logger']->error(sprintf('Could not find controller "%s()" in file "%s", malformed namespace or classname.', $controller, $file));
+                $loadFail->debug(sprintf("Could not find controller '%s()' in file '%s'.\nMalformed namespace or classname.", $controller, $file));
+                $loadFail->debug(sprintf("We dumped the contents of '%s' to make the debugging easier.\n\n==========", $file));
+                $loadFail->debug(htmlentities(file_get_contents($file)));
+            }
+
+            $loadFail->run();
         }
 
         $this->Controller = new $controller();
