@@ -189,7 +189,7 @@ class Application extends Pimple
                 $this['logger']->error('InvalidArgumentException thrown when trying to load resource: '.$this['request']->getPathInfo());
                 new LoadFail('500', $this);
             } catch (\Exception $e) {
-                $this['logger']->error('Exception thrown when trying to load resource: '.$this['request']->getPathInfo());
+                $this['logger']->error('Exception thrown when trying to load resource. Probably malformed routes.yml file.');
                 new LoadFail('500', $this);
             }
 
