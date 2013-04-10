@@ -139,9 +139,36 @@ class Application extends Pimple
             date_default_timezone_set($timezone);
         } catch(\Exception $e) {}
 
-        ErrorHandling::construct($this->setting('env'), $this['logger']);
-        set_error_handler( [ 'Cangit\\Beatrix\\ErrorHandling', 'errorHandler' ] );
-        set_exception_handler( ['Cangit\\Beatrix\\ErrorHandling', 'exceptionHandler'] );
+        if ($this->setting('env') === 'dev'){
+            $run = new \Whoops\Run();
+            $handler = new \Whoops\Handler\PrettyPageHandler();
+            $cache = var_export($this->setting('cache'), true);
+            $settings = var_export($this->setting('cache.settings'), true);
+            $routes = var_export($this->setting('cache.routes'), true);
+            $handler->addDataTable('Beatrix Settings', [
+                'Name' => $this->setting('name'),
+                'Environment' => $this->setting('env'),
+                'Cache' => $cache,
+                'Cache.interface' => $this->setting('cache.interface'),
+                'Cache.settings' => $settings,
+                'Cache.routes' => $routes
+            ]);
+            $run->pushHandler($handler);
+            $run->pushHandler(function($exception, $inspector, $run) {
+                $frames = $inspector->getFrames();
+                foreach($frames as $i => $frame) {
+                    if($function = $frame->getFunction()) {
+                        $frame->addComment("'$function'", 'method/function');
+                    }
+                }
+            });
+            $run->register();
+        } else {
+            ErrorHandling::construct($this['logger']);
+            set_error_handler( [ 'Cangit\\Beatrix\\ErrorHandling', 'errorHandler' ] );
+            set_exception_handler( ['Cangit\\Beatrix\\ErrorHandling', 'exceptionHandler'] );
+        }
+
         error_reporting(E_ALL);
     }
 

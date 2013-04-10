@@ -5,11 +5,9 @@ namespace Cangit\Beatrix;
 class ErrorHandling
 {
 
-    private static $env;
     private static $logger;
 
-    public static function construct($env, $logger){
-        self::$env = $env;
+    public static function construct($logger){
         self::$logger = $logger;
     }
 
@@ -59,12 +57,11 @@ class ErrorHandling
         } else {
             self::$logger->addError('Exception', $error);
         }
-
-        if (self::$env == 'dev') {
-            include WEB_ROOT.'/app/static/exceptionDev.php';
+        
+        if (is_readable('app/static/exception.php')){
+            require 'app/static/exception.php';
         } else {
             header('HTTP/1.1 500 Internal Server Error');
-            // Load custom 500 error page here. For now, we exit:
             exit('Something awful happened, we are working to get it fixed. Please try to reload your browser.');
         }
     }
