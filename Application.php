@@ -256,16 +256,24 @@ class Application extends Pimple
         $this->Controller = new $controller();
     }
 
-    private function compileAllowHeaders()
+    public function compileAllowHeaders($controller=null)
     {
-        $methods = get_class_methods($this->Controller);
+        if($controller === null){
+            $controller = $this->Controller;
+        }
+
+        $methods = get_class_methods($controller);
         $options = '';
         
-        foreach ($methods as $method) {
-            $method = strtoupper($method);
-            if (in_array($method, ['GET', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT'])){
-                $options .= $method.', ';
+        if (is_array($methods)){
+            foreach ($methods as $method) {
+                $method = strtoupper($method);
+                if (in_array($method, ['GET', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT'])){
+                    $options .= $method.', ';
+                }
             }
+        } elseif($methods === null) {
+            throw new \Exception(sprintf('Class "%s" could not be found.', $controller));
         }
         
         if (strpos($options, 'GET,') !== false){
