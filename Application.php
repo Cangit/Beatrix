@@ -21,6 +21,7 @@ class Application extends Pimple
         /* Symfony HttpFoundation Request object */
         // http://symfony.com/doc/current/components/http_foundation/introduction.html#accessing-request-data
         $this['request'] = $this->share( function(){
+            \Symfony\Component\HttpFoundation\Request::enableHttpMethodParameterOverride();
             return \Symfony\Component\HttpFoundation\Request::createFromGlobals();
         });
 
