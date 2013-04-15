@@ -113,7 +113,11 @@ class Application extends Pimple
 
         $this['session'] = $this->share( function(){
             return \Cangit\Beatrix\Session::load();
-        }); 
+        });
+
+        $this['permission'] = $this->share( function($c){
+            return new \Cangit\Beatrix\Permission($c['session'], $c['logger']);
+        });
 
         /* Beatrix variable cache interface */
         $this['cache'] = $this->share( function($c){
@@ -227,6 +231,17 @@ class Application extends Pimple
                 $loadFail->run();
             }
 
+            $permission = $this['request']->attributes->get('permission', null);
+
+            if ($permission !== null){
+                $permission = $this['permission']->validate($permission);
+                if($permission !== true){
+                    $response = $this->response('Forbidden', 403);
+                    $this->prepareAndSend($response);
+                    return;
+                }
+            }
+
             $this->createController($controller);
 
         }
@@ -281,7 +296,12 @@ class Application extends Pimple
             $loadFail->run();
         }
 
-        $this->Controller = new $controller();
+        if (method_exists($controller, '__construct')){
+            $this->Controller = new $controller($this);
+        } else {
+            $this->Controller = new $controller();
+        }
+        
     }
 
     public function compileAllowHeaders($controller=null)
