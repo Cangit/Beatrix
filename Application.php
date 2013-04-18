@@ -58,7 +58,7 @@ class Application extends Pimple
                 break;
                 case 'dev':
                     $streamHandler = new \Monolog\Handler\StreamHandler(WEB_ROOT.'/app/log/debug/'.date("ymd").'.log');
-                    $formatter = new \Monolog\Formatter\JsonFormatter();
+                    $formatter = new \Monolog\Formatter\LineFormatter();
                     $streamHandler->setFormatter($formatter);
                     $streamHandler = new \Monolog\Handler\FingersCrossedHandler($streamHandler, $streamHandlerLevel);
                     $monolog->pushHandler($streamHandler);
@@ -67,6 +67,8 @@ class Application extends Pimple
                     $monolog->pushHandler($fireHandler);
 
                     $chromeHandler = new \Monolog\Handler\ChromePHPHandler();
+                    $formatter = new\Monolog\Formatter\ChromePHPFormatter();
+                    $chromeHandler->setFormatter($formatter);
                     $monolog->pushHandler($chromeHandler);
                 break;
                 default:
@@ -167,6 +169,47 @@ class Application extends Pimple
                     }
                 }
             });
+            $run->pushHandler( function($exception){
+                $file = str_replace( WEB_ROOT , "", $exception->getFile() );
+
+                switch ($exception->getCode()){
+                    case E_ERROR:
+                    case E_USER_ERROR:
+                    case E_RECOVERABLE_ERROR:
+                        $type = 'error';
+                    break;
+                    case E_WARNING:
+                    case E_USER_WARNING:
+                        $type = 'warning';
+                    break;
+                    case E_NOTICE:
+                    case E_USER_NOTICE:
+                        $type = 'notice';
+                    break;
+                    case E_DEPRECATED:
+                    case E_USER_DEPRECATED:
+                        $type = 'deprecated';
+                    break;
+                    default:
+                        $type = 'unknown';
+                }
+
+                $error = [
+                    'code' => $exception->getCode(),
+                    'type' => $type,
+                    'msg' => $exception->getMessage(),
+                    'file' => $file,
+                    'line' => $exception->getLine(),
+                    'trace' => $exception->getTrace()
+                ];
+
+                if (method_exists($this['logger'], $type)){
+                    $this['logger']->$type('Exception', $error);
+                } else {
+                    $this['logger']->error('Exception', $error);
+                }
+
+            } );
             $run->register();
         } else {
             ErrorHandling::construct($this['logger']);
