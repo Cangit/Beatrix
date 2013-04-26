@@ -149,6 +149,7 @@ class Application extends Pimple
         if ($this->setting('env') === 'dev'){
             $run = new \Whoops\Run();
             $handler = new \Whoops\Handler\PrettyPageHandler();
+            $handler->setEditor('sublime');
             $cache = var_export($this->setting('cache'), true);
             $settings = var_export($this->setting('cache.settings'), true);
             $routes = var_export($this->setting('cache.routes'), true);
