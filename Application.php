@@ -256,8 +256,11 @@ class Application extends Pimple
 
                 $attributes = $Router->match($this['request']->getPathInfo());
                 $this['request']->attributes->add($Router->match($this['request']->getPathInfo()));
-                $controller = "controller\\".$attributes['_controller'];
-
+                if (substr($attributes['_controller'], 0, 1) === '@'){
+                    $controller = substr($attributes['_controller'], 1);
+                } else {
+                    $controller = "controller\\".$attributes['_controller'];
+                }
             } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException $e) {
                 $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 $loadFail = new LoadFail('404', $this);
