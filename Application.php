@@ -1,6 +1,10 @@
 <?php
 
 namespace Cangit\Beatrix;
+use Symfony\Component\Routing\Matcher\UrlMatcher;
+use Symfony\Component\Routing\RequestContext;
+use Symfony\Component\Routing\RouteCollection;
+use Symfony\Component\Routing\Route;
 
 class Application extends Pimple
 {
@@ -48,7 +52,7 @@ class Application extends Pimple
                         }
                     }
                 
-                    $streamHandler = new \Monolog\Handler\StreamHandler(WEB_ROOT.'/app/log/debug/'.date("ymd").'.log');
+                    $streamHandler = new \Monolog\Handler\StreamHandler(APP_ROOT.'/app/log/debug/'.date("ymd").'.log');
                     $formatter = new \Monolog\Formatter\JsonFormatter();
                     $streamHandler->setFormatter($formatter);
                     
@@ -57,7 +61,7 @@ class Application extends Pimple
 
                 break;
                 case 'dev':
-                    $streamHandler = new \Monolog\Handler\StreamHandler(WEB_ROOT.'/app/log/debug/'.date("ymd").'.log');
+                    $streamHandler = new \Monolog\Handler\StreamHandler(APP_ROOT.'/app/log/debug/'.date("ymd").'.log');
                     $formatter = new \Monolog\Formatter\LineFormatter();
                     $streamHandler->setFormatter($formatter);
                     $streamHandler = new \Monolog\Handler\FingersCrossedHandler($streamHandler, $streamHandlerLevel);
@@ -82,8 +86,8 @@ class Application extends Pimple
         /* Twig template engine */
         // http://twig.sensiolabs.org/doc/api.html
         $this['twig'] = $this->share( function(){
-            $twigLoader = new \Twig_Loader_Filesystem(WEB_ROOT.'/src/lib/');
-            $twigLoader->addPath(WEB_ROOT.'/', 'root');
+            $twigLoader = new \Twig_Loader_Filesystem(APP_ROOT.'/src/lib/');
+            $twigLoader->addPath(APP_ROOT.'/', 'root');
             $attributes = [];
 
             if ($this->setting('env') == 'dev'){
@@ -94,7 +98,7 @@ class Application extends Pimple
             }
 
             $attributes = array_merge($attributes, [
-                'cache' => WEB_ROOT.'/app/cache/twig',
+                'cache' => APP_ROOT.'/app/cache/twig',
                 'strict_variables' => true
             ]);
 
@@ -117,10 +121,6 @@ class Application extends Pimple
             return \Cangit\Beatrix\Session::load();
         });
 
-        $this['permission'] = $this->share( function($c){
-            return new \Cangit\Beatrix\Permission($c['session'], $c['logger']);
-        });
-
         /* Beatrix variable cache interface */
         $this['cache'] = $this->share( function($c){
             switch($this->setting('cache.interface')) {
@@ -138,8 +138,8 @@ class Application extends Pimple
             }
         });
 
-        require(WEB_ROOT.'/app/config/beatrixCache.php');
-        $this->settings = array_merge($this->settings, $this['cache']->file('beatrixSettings', WEB_ROOT.'/app/config/beatrixSettings.yml', 'yml'));
+        require(APP_ROOT.'/app/config/beatrixCache.php');
+        $this->settings = array_merge($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml'));
         
         try {
             $timezone = $this->setting('timezone');
@@ -171,7 +171,7 @@ class Application extends Pimple
                 }
             });
             $run->pushHandler( function($exception){
-                $file = str_replace( WEB_ROOT , "", $exception->getFile() );
+                $file = str_replace( APP_ROOT , "", $exception->getFile() );
 
                 switch ($exception->getCode()){
                     case E_ERROR:
@@ -224,49 +224,55 @@ class Application extends Pimple
     public function run()
     {
         $Loader = $this['classLoader'];
-        $Loader->registerNamespace( 'src' , WEB_ROOT);
-        $Loader->registerNamespace( 'controller' , WEB_ROOT.'/src');
-        $Loader->registerNamespace( 'model' , WEB_ROOT.'/src');
+        $Loader->registerNamespace( 'src' , APP_ROOT);
+        $Loader->registerNamespace( 'controller' , APP_ROOT.'/src');
+        $Loader->registerNamespace( 'model' , APP_ROOT.'/src');
         $Loader->register();
 
-        if (!is_readable(WEB_ROOT.'/app/config/routes.yml')){
+        if (!is_readable(APP_ROOT.'/app/config/routes.yml')){
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
             $loadFail->run();
         } else {
+
+            $collection = new RouteCollection();
+            $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/app/config']);
+            $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
+            $collection->addCollection($loader->load('routes.yml'));
+
             try{
-                $Locator = new \Symfony\Component\Config\FileLocator([WEB_ROOT.'/app/config/']);
-                $Context = new \Symfony\Component\Routing\RequestContext($this['request']);
-
-                if ($this->setting('cache') && $this->setting('cache.routes')){
-                    $Router = new \Symfony\Component\Routing\Router(
-                        new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator),
-                        'routes.yml',
-                        ['cache_dir' => WEB_ROOT.'/app/cache/beatrix'],
-                        $Context
-                    );
-                } else {
-                    $Router = new \Symfony\Component\Routing\Router(
-                        new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator),
-                        'routes.yml',
-                        [],
-                        $Context
-                    );
+                if (is_array($routes = $this->setting('routes'))){
+                    foreach($routes as $route){
+                        if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')){
+                            $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/vendor/'.$route]);
+                            $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
+                            $collection->addCollection($loader->load('routes.yml'));
+                        } else {
+                            $this['logger']->warning('Could not find routing file: '.APP_ROOT.'/vendor/'.$route.'routes.yml');
+                        }
+                    }
                 }
+            } catch (\Exception $e) {}
 
-                $attributes = $Router->match($this['request']->getPathInfo());
-                $this['request']->attributes->add($Router->match($this['request']->getPathInfo()));
+            try{
+
+                $Context = new RequestContext($this['request']);
+                $matcher = new UrlMatcher($collection, $Context);
+
+                $attributes = $matcher->match($this['request']->getPathInfo());
+                $this['request']->attributes->add($attributes);
                 if (substr($attributes['_controller'], 0, 1) === '@'){
                     $controller = substr($attributes['_controller'], 1);
                 } else {
                     $controller = "controller\\".$attributes['_controller'];
                 }
+
             } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException $e) {
                 $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 $loadFail = new LoadFail('404', $this);
                 $loadFail->debug(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 $loadFail->debug("We dumped the contents of 'app/config/routes.yml' to make the debugging easier.\n\n==========");
-                $loadFail->debug(htmlentities(file_get_contents(WEB_ROOT.'/app/config/routes.yml')));
+                $loadFail->debug(htmlentities(file_get_contents(APP_ROOT.'/app/config/routes.yml')));
                 $loadFail->run();
             } catch (\InvalidArgumentException $e){
                 $this['logger']->error('InvalidArgumentException thrown when trying to load resource: '.$this['request']->getPathInfo());
@@ -276,17 +282,6 @@ class Application extends Pimple
                 $this['logger']->error('Exception thrown when trying to load resource. Probably syntax error in routes.yml file.');
                 $loadFail = new LoadFail('500', $this);
                 $loadFail->run();
-            }
-
-            $permission = $this['request']->attributes->get('permission', null);
-
-            if ($permission !== null){
-                $permission = $this['permission']->validate($permission);
-                if($permission !== true){
-                    $response = $this->response('Forbidden', 403);
-                    $this->prepareAndSend($response);
-                    return;
-                }
             }
 
             $this->createController($controller);
@@ -399,11 +394,6 @@ class Application extends Pimple
                             case 'app':
                                 $attr[] = $this;
                             break;
-                            /*
-                            case 'request':
-                                $attr[] = $this['request'];
-                            break;
-                            */
                             default:
                                 throw new \Exception('Argument list is invalid.', E_ERROR);
                         }

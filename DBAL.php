@@ -30,7 +30,7 @@ class DBAL
             throw new \InvalidArgumentException(sprintf('Wrong argument type passed to getHandle(). Expecting string, was "%s"', gettype($handle)), E_ERROR);
         }
 
-        $rawPDOConfig = $this->cache->file('beatrixDB', WEB_ROOT.'/app/config/db.yml', 'yml');
+        $rawPDOConfig = $this->cache->file('beatrixDB', APP_ROOT.'/app/config/db.yml', 'yml');
 
         if (isset($rawPDOConfig[$handle])){
             return $this->createHandle(
