@@ -223,12 +223,6 @@ class Application extends Pimple
 
     public function run()
     {
-        $Loader = $this['classLoader'];
-        $Loader->registerNamespace( 'src' , APP_ROOT);
-        $Loader->registerNamespace( 'controller' , APP_ROOT.'/src');
-        $Loader->registerNamespace( 'model' , APP_ROOT.'/src');
-        $Loader->register();
-
         if (!is_readable(APP_ROOT.'/app/config/routes.yml')){
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
