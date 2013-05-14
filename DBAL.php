@@ -58,8 +58,9 @@ class DBAL
     {
         try
         {
-            $dbh = new \PDO($connectionStr, $username, $password, [\PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8"]);
-            
+            // On some installations \PDO::MYSQL_ATTR_INIT_COMMAND is gone, Therefore we use 1002
+            $dbh = new \PDO($connectionStr, $username, $password, [1002 => "SET NAMES utf8"]);
+                        
             foreach($attributes as $key => $val){
                 if (is_bool($val) or is_int($val)){
                     $dbh->setAttribute(constant("\PDO::".$key), $val);

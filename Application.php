@@ -137,14 +137,19 @@ class Application extends Pimple
                 break;
             }
         });
+        
+        if (is_readable(APP_ROOT.'/app/config/beatrixCache.php')){
+            require(APP_ROOT.'/app/config/beatrixCache.php');
+        } else {
+            throw new \Exception('/app/config/beatrixCache.php could not be found or read.');
+        }
 
-        require(APP_ROOT.'/app/config/beatrixCache.php');
         $this->settings = array_merge($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml'));
         
         try {
             $timezone = $this->setting('timezone');
             date_default_timezone_set($timezone);
-        } catch(\Exception $e) {}
+        } catch (\Exception $e) {}
 
         if ($this->setting('env') === 'dev'){
             $run = new \Whoops\Run();
@@ -219,6 +224,7 @@ class Application extends Pimple
         }
 
         error_reporting(E_ALL);
+
     }
 
     public function run()
@@ -231,8 +237,8 @@ class Application extends Pimple
 
             $collection = new RouteCollection();
             $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/app/config']);
-            $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
-            $collection->addCollection($loader->load('routes.yml'));
+            $loader = new YamlFileLoader($Locator);
+            $collection->addCollection($loader->beatrixLoad('routes.yml', $this['cache']));
 
             try{
                 if (is_array($routes = $this->setting('routes'))){
