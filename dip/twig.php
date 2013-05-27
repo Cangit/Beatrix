@@ -2,13 +2,13 @@
 /* Twig template engine */
 // http://twig.sensiolabs.org/doc/api.html
 
-$this[$id] = $this->share( function(){
+$this['twig'] = $this->share( function($c){
 
     $twigLoader = new \Twig_Loader_Filesystem(APP_ROOT.'/src/lib/');
     $twigLoader->addPath(APP_ROOT.'/', 'root');
     $attributes = [];
 
-    if ($this->setting('env') == 'dev'){
+    if ($c->setting('env') == 'dev'){
         $attributes = [
             'auto_reload' => true,
             'debug' => true

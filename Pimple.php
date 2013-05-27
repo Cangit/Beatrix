@@ -16,7 +16,7 @@ copies or substantial portions of the Software.
 */
 class Pimple implements \ArrayAccess
 {
-    private $values;
+    protected $values;
 
     /**
      * Instantiate the container.
