@@ -29,127 +29,20 @@ class Application extends Pimple
             return \Symfony\Component\HttpFoundation\Request::createFromGlobals();
         });
 
-        /* Monolog logger */
-        // https://github.com/Seldaek/monolog
-        $this['logger'] = $this->share(function(){
-            
-            $monolog = new \Monolog\Logger( $this->setting('name') );
-            $loggerSettings = $this->setting('logger');
-            
-            if (isset($loggerSettings['streamHandler']['level'])){
-                $streamHandlerLevel = $loggerSettings['streamHandler']['level'];
-            } else {
-                $streamHandlerLevel = \Monolog\Logger::WARNING;
+        require APP_ROOT.'/app/config/beatrixSettingsPreload.php';
+
+        if (isset($this->settings['ICP'])){
+            foreach ($this->settings['ICP'] as $part){
+                require APP_ROOT.'/'.$part['path'];
             }
-
-            switch ($this->setting('env')){
-                case 'prod':
-                case 'test':
-                    if (isset($loggerSettings['pushoverHandler'])){
-                        foreach ( $loggerSettings['pushoverHandler'] as $handler ) {
-                            $pushoverHandler = new \Monolog\Handler\PushoverHandler($handler['token'], $handler['user'], $handler['title'], $handler['level']);
-                            $monolog->pushHandler($pushoverHandler);
-                        }
-                    }
-                
-                    $streamHandler = new \Monolog\Handler\StreamHandler(APP_ROOT.'/app/log/debug/'.date("ymd").'.log');
-                    $formatter = new \Monolog\Formatter\JsonFormatter();
-                    $streamHandler->setFormatter($formatter);
-                    
-                    $streamHandler = new \Monolog\Handler\FingersCrossedHandler($streamHandler, $streamHandlerLevel);
-                    $monolog->pushHandler($streamHandler);
-
-                break;
-                case 'dev':
-                    $streamHandler = new \Monolog\Handler\StreamHandler(APP_ROOT.'/app/log/debug/'.date("ymd").'.log');
-                    $formatter = new \Monolog\Formatter\LineFormatter();
-                    $streamHandler->setFormatter($formatter);
-                    $streamHandler = new \Monolog\Handler\FingersCrossedHandler($streamHandler, $streamHandlerLevel);
-                    $monolog->pushHandler($streamHandler);
-
-                    $fireHandler = new \Monolog\Handler\FirePHPHandler();
-                    $monolog->pushHandler($fireHandler);
-
-                    $chromeHandler = new \Monolog\Handler\ChromePHPHandler();
-                    $formatter = new\Monolog\Formatter\ChromePHPFormatter();
-                    $chromeHandler->setFormatter($formatter);
-                    $monolog->pushHandler($chromeHandler);
-                break;
-                default:
-                    throw new \Exception('"env" setting is invalid in beatrixSettings.yml', E_ERROR);
-                break;
-            }
-
-            return $monolog;
-        });
-
-        /* Twig template engine */
-        // http://twig.sensiolabs.org/doc/api.html
-        $this['twig'] = $this->share( function(){
-            $twigLoader = new \Twig_Loader_Filesystem(APP_ROOT.'/src/lib/');
-            $twigLoader->addPath(APP_ROOT.'/', 'root');
-            $attributes = [];
-
-            if ($this->setting('env') == 'dev'){
-                $attributes = [
-                    'auto_reload' => true,
-                    'debug' => true
-                ];
-            }
-
-            $attributes = array_merge($attributes, [
-                'cache' => APP_ROOT.'/app/cache/twig',
-                'strict_variables' => true
-            ]);
-
-            return new \Twig_Environment($twigLoader, $attributes);
-        });
-
-        /* Memcached, a memcache client interface */
-        // http://php.net/memcached
-        $this['memcached'] = $this->share( function(){
-            $m = new \Memcached();
-            $m->addServer('localhost', 11211);
-            return $m;
-        });
-
-        $this['db'] = $this->share( function($c){
-            return new \Cangit\Beatrix\DBAL($c['cache'], $c['logger']);
-        });
-
-        $this['session'] = $this->share( function(){
-            return \Cangit\Beatrix\Session::load();
-        });
-
-        /* Beatrix variable cache interface */
-        $this['cache'] = $this->share( function($c){
-            switch($this->setting('cache.interface')) {
-                case 'apcu':
-                    // https://github.com/krakjoe/apcu
-                    return new Cache\ApcU();
-                break;
-                case 'memcached':
-                    return new Cache\Memcached($c['memcached'], $this->settings);
-                break;
-                case 'none':
-                default:
-                    return new Cache\None();
-                break;
-            }
-        });
-        
-        if (is_readable(APP_ROOT.'/app/config/beatrixCache.php')){
-            require(APP_ROOT.'/app/config/beatrixCache.php');
-        } else {
-            throw new \Exception('/app/config/beatrixCache.php could not be found or read.');
         }
 
-        $this->settings = array_merge($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml'));
+        $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml'));
         
         try {
             $timezone = $this->setting('timezone');
             date_default_timezone_set($timezone);
-        } catch (\Exception $e) {}
+        } catch(\Exception $e) {}
 
         if ($this->setting('env') === 'dev'){
             $run = new \Whoops\Run();
@@ -224,11 +117,35 @@ class Application extends Pimple
         }
 
         error_reporting(E_ALL);
+    }
 
+    /* Loads object from path configuration in settings */
+    public function loadICP($id)
+    {
+        $ic = $this->setting('ICP');
+        
+        if (isset($ic[$id]['path'])){
+            require APP_ROOT.'/'.$ic[$id]['path'];
+        } else {
+            throw new \InvalidArgumentException(sprintf('Identifier "%s" is not defined.', $id));
+        }
+    }
+
+    /* Overrides Pimple->offsetGet() */
+    public function offsetGet($id)
+    {
+        if (!array_key_exists($id, $this->values)) {
+            $this->loadICP($id);
+        }
+
+        $isFactory = is_object($this->values[$id]) && method_exists($this->values[$id], '__invoke');
+
+        return $isFactory ? $this->values[$id]($this) : $this->values[$id];
     }
 
     public function run()
     {
+
         if (!is_readable(APP_ROOT.'/app/config/routes.yml')){
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
@@ -434,12 +351,14 @@ class Application extends Pimple
         $responseObj->prepare( $this['request'] )->send();
     }
 
-    public function setting($var)
+    public function setting($var, $default=null)
     {
         if (isset($this->settings[$var])){
             return $this->settings[$var];
         } elseif (!is_string($var)) {
             throw new \InvalidArgumentException('Expected string, '.gettype($var).' given.', E_ERROR);
+        } elseif ($default !== null) {
+            return $default;
         } else {
             throw new \Exception(sprintf('Setting "%s" is not defined.', $var), E_ERROR);
         }
