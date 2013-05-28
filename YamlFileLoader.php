@@ -10,11 +10,11 @@ use Symfony\Component\Config\Loader\FileLoader;
 
 class YamlFileLoader extends \Symfony\Component\Routing\Loader\YamlFileLoader
 {
-    public function beatrixLoad($file, $cache)
+    public function beatrixLoad($file, $cache, $readCache=true)
     {
         $path = $this->locator->locate($file);
 
-        $config = $cache->file('beatrixRoutes', $path, 'yml');
+        $config = $cache->file('beatrixRoutes', $path, 'yml', $readCache);
         $collection = new RouteCollection();
         $collection->addResource(new FileResource($path));
 

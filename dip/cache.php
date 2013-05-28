@@ -3,10 +3,10 @@
 // Cache interface: {beatrix}/Cache/CacheInterface.php
 
 $this['cache'] = $this->share( function($c){
-
-    if (isset($c->setting('cache'))){
+    
+    try{
         $cache = $c->setting('cache');
-    } else {
+    } catch (\Exception $e){
         $cache = false;
     }
 

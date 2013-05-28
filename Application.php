@@ -1,6 +1,7 @@
 <?php
 
 namespace Cangit\Beatrix;
+
 use Symfony\Component\Routing\Matcher\UrlMatcher;
 use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\RouteCollection;
@@ -31,13 +32,17 @@ class Application extends Pimple
 
         require APP_ROOT.'/app/config/beatrixSettingsPreload.php';
 
-        if (isset($this->settings['ICP'])){
-            foreach ($this->settings['ICP'] as $part){
+        if (isset($this->settings['DIC'])){
+            foreach ($this->settings['DIC'] as $part){
                 require APP_ROOT.'/'.$part['path'];
             }
         }
 
-        $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml'));
+        if (!isset($this->settings['cache.settings'])){
+            $this->settings['cache.settings'] = false;
+        }
+
+        $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml', $this->settings['cache.settings']));
         
         try {
             $timezone = $this->setting('timezone');
@@ -120,9 +125,9 @@ class Application extends Pimple
     }
 
     /* Loads object from path configuration in settings */
-    public function loadICP($id)
+    public function loadIntoDIC($id)
     {
-        $ic = $this->setting('ICP');
+        $ic = $this->setting('DIC');
         
         if (isset($ic[$id]['path'])){
             require APP_ROOT.'/'.$ic[$id]['path'];
@@ -135,7 +140,7 @@ class Application extends Pimple
     public function offsetGet($id)
     {
         if (!array_key_exists($id, $this->values)) {
-            $this->loadICP($id);
+            $this->loadIntoDIC($id);
         }
 
         $isFactory = is_object($this->values[$id]) && method_exists($this->values[$id], '__invoke');
@@ -155,7 +160,7 @@ class Application extends Pimple
             $collection = new RouteCollection();
             $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/app/config']);
             $loader = new YamlFileLoader($Locator);
-            $collection->addCollection($loader->beatrixLoad('routes.yml', $this['cache']));
+            $collection->addCollection($loader->beatrixLoad('routes.yml', $this['cache'], $this->setting('cache.routes')));
 
             try{
                 if (is_array($routes = $this->setting('routes'))){
