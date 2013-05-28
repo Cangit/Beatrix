@@ -2,18 +2,17 @@
 
 namespace Cangit\Beatrix\Cache;
 
-
 class None implements CacheInterface
 {
 
-    public function clear($identifier = null)
+    public function clear($id = null)
     {
         return true;
     }
 
-    public function file($identifier, $file, $format = '')
+    public function file($id, $file, $format='', $readCache=true, $writeCache=true)
     {
-        if(!is_string($identifier)){
+        if(!is_string($id)){
             throw new \InvalidArgumentException('Expected string as first parameter.', E_ERROR);
         }
 

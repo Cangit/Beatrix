@@ -5,21 +5,21 @@ namespace Cangit\Beatrix\Cache;
 class APCu implements CacheInterface
 {
 
-    private $settings;
+    private $settingCache;
 
-    public function __construct($settings)
+    public function __construct($settingCache=false)
     {
-        $this->settings = $settings;
+        $this->settingCache = $settingCache;
     }
 
-    public function clear($identifier = null)
+    public function clear($id = null)
     {
-        if ($identifier === null){
-            if(apcu_clear_cache()){
+        if ($id === null){
+            if (apcu_clear_cache()){
                 return true;
             }
         } else {
-            if (apcu_delete($identifier)){
+            if (apcu_delete($id)){
                 return true;
             }
         }
@@ -27,15 +27,15 @@ class APCu implements CacheInterface
         return false;
     }
 
-    public function file($identifier, $file, $format = '')
+    public function file($id, $file, $format='', $readCache=true, $writeCache=true)
     {
-        if(!is_string($identifier)){
+        if(!is_string($id)){
             throw new \InvalidArgumentException('Expected string as first parameter.', E_ERROR);
         }
 
-        if (apcu_exists($identifier)){
-            if ($this->settings['cache.settings'] === true){
-                return apcu_fetch($identifier);
+        if (apcu_exists($id)){
+            if ($readCache === true && $this->settingCache === true){
+                return apcu_fetch($id);
             }
         }
 
@@ -47,8 +47,8 @@ class APCu implements CacheInterface
                 throw new \Exception(sprintf('Requested format "%s" is not supported, refer to manual for supported formats.', $format), E_ERROR);
         }
 
-        if ($this->settings['cache.settings'] === true){
-            apcu_store($identifier, $data);
+        if ($writeCache === true && $this->settingCache === true){
+            apcu_store($id, $data);
         }
 
         return $data;
