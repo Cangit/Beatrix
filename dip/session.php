@@ -11,5 +11,15 @@ $this['session'] = $this->share( function($c){
         $options = [];
     }
 
-    return \Cangit\Beatrix\Session::load($options);
+    if (isset($settings['handler'])){
+        $handler = [];
+        $handler['settings'] = $settings['handler'];
+        if (isset($settings['handler']['db_handler'])){
+            $handler['db'] = $c['db']->getPdoHandle($settings['handler']['db_handler']);
+        }
+    } else {
+        $handler = null;
+    }
+
+    return \Cangit\Beatrix\Session::load($options, $handler);
 });

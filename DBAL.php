@@ -6,6 +6,7 @@ class DBAL
 {
 
     private $handles = [];
+    private $pdoHandles = [];
     private $activeHandle = 'default';
     private $cache;
     private $logger;
@@ -16,14 +17,23 @@ class DBAL
         $this->logger = $logger;
     }
 
-    public function getHandle($handle = null)
+    public function getPdoHandle($handle = null)
+    {
+        return $this->getHandle($handle, true);
+    }
+
+    public function getHandle($handle = null, $rawPdo = false)
     {
         if ($handle === null){
             $handle = $this->activeHandle;
         }
 
         if (isset($this->handles[$handle])){
-            return $this->handles[$handle];
+            if ($rawPdo === false){
+                return $this->handles[$handle];
+            } else {
+                return $this->pdoHandles[$handle];
+            }
         }
 
         if (!is_string($handle)){
@@ -38,7 +48,8 @@ class DBAL
                 $rawPDOConfig[$handle]['connectionString'],
                 $rawPDOConfig[$handle]['username'],
                 $rawPDOConfig[$handle]['password'],
-                $rawPDOConfig[$handle]['attributes']
+                $rawPDOConfig[$handle]['attributes'],
+                $rawPdo
             );
         }
         
@@ -54,7 +65,7 @@ class DBAL
         $this->activeHandle = $setHandle;
     }
     
-    public function createHandle($handle, $connectionStr, $username, $password, $attributes = [])
+    public function createHandle($handle, $connectionStr, $username, $password, $attributes = [], $rawPdo = false)
     {
         try
         {
@@ -79,10 +90,15 @@ class DBAL
             throw new \Exception('Failed to set up db connection.', E_ERROR);
         }
 
+        $this->pdoHandles[$handle] = $dbh;
         $params = ['pdo' => $dbh];
         $dbh = \Doctrine\DBAL\DriverManager::getConnection($params);
         $this->handles[$handle] = $dbh;
-        return $this->handles[$handle];
+        if ($rawPdo === false){
+            return $this->handles[$handle];
+        } else {
+            return $this->pdoHandles[$handle];
+        }
     }
     
     public function closeHandle($attrHandle = null)
