@@ -4,7 +4,7 @@
 
 $this['twig'] = $this->share( function($c){
 
-    $twigLoader = new \Twig_Loader_Filesystem(APP_ROOT.'/src/lib/');
+    $twigLoader = new \Twig_Loader_Filesystem(APP_ROOT.'/src/view/');
     $twigLoader->addPath(APP_ROOT.'/', 'root');
     $attributes = [];
 
