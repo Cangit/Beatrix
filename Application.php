@@ -193,7 +193,7 @@ class Application extends Pimple
                 $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 $loadFail = new LoadFail('404', $this);
                 $loadFail->debug(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
-                $loadFail->debug("We dumped the contents of 'app/config/routes.yml' to make the debugging easier.\n\n==========");
+                $loadFail->debug("We dumped the contents of <a href='subl://open?url=file://".APP_ROOT."/app/config/routes.yml'>'app/config/routes.yml'</a> to make the debugging easier.\n\n==========");
                 $loadFail->debug(htmlentities(file_get_contents(APP_ROOT.'/app/config/routes.yml')));
                 $loadFail->run();
             } catch (\InvalidArgumentException $e){

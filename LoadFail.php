@@ -59,7 +59,7 @@ class LoadFail
                     $response->setContent($content);
                     $this->app->prepareAndSend($response);
                 } else {
-                    require WEB_ROOT."/app/static/400.php";
+                    require APP_ROOT."/app/static/400.php";
                 }
                 exit ();
             break;
@@ -72,7 +72,7 @@ class LoadFail
                     $response->setContent($content);
                     $this->app->prepareAndSend($response);
                 } else {
-                    require WEB_ROOT."/app/static/500.php";
+                    require APP_ROOT."/app/static/500.php";
                 }
                 exit ();
             break;

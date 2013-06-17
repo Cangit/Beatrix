@@ -19,7 +19,7 @@ class ErrorHandling
 
     public static function exceptionHandler($exception)
     {
-        $file = str_replace( WEB_ROOT , "", $exception->getFile() );
+        $file = str_replace( APP_ROOT , "", $exception->getFile() );
 
         switch ($exception->getCode()){
             case E_ERROR:
