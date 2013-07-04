@@ -55,14 +55,14 @@ class ErrorHandling
         if (method_exists(self::$logger, $type)){
             self::$logger->$type('Exception', $error);
         } else {
-            self::$logger->addError('Exception', $error);
+            self::$logger->error('Exception', $error);
         }
         
         if (is_readable('app/static/exception.php')){
             require 'app/static/exception.php';
         } else {
             header('HTTP/1.1 500 Internal Server Error');
-            exit('Something awful happened, we are working to get it fixed. Please try to reload your browser.');
+            exit('Something broke, we are working to get it fixed. Please try to reload your browser.');
         }
     }
 
