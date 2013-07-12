@@ -39,55 +39,73 @@ class LoadFail
 
         if ($hit === false){
             if (false === mb_strpos($acceptHeaders, 'application/json')){
-                $this->respondhtml($code);
+                $this->respondDefault($code);
             } else {
-                $this->respondjson($code);
+                $this->respondJson($code);
             }
         } else {
-            $this->respondhtml($code);
+            $this->respondDefault($code);
         }
     }
 
-    private function respondhtml($code)
+    private function respondDefault($code)
     {
         switch ($code){
             case '404':
-                $response = $this->app->response('', 404);
-                
-                if ($this->app->setting('env') == 'dev'){
-                    $content = $this->notfounderror();
-                    $response->setContent($content);
-                    $this->app->prepareAndSend($response);
-                } else {
-                    require APP_ROOT."/app/static/400.php";
-                }
-                exit ();
+                $defaultPages = $this->app->setting('defaultPages', false);
             break;
             case '500':
-                $response = $this->app->response('', 500);
-
-                if ($this->app->setting('env') == 'dev'){
-
-                    $content = $this->internalError();
-                    $response->setContent($content);
-                    $this->app->prepareAndSend($response);
-                } else {
-                    require APP_ROOT."/app/static/500.php";
-                }
-                exit ();
+                $defaultPages = $this->app->setting('defaultPages', false);
+            break;
+            default:
+                $defaultPages = $this->app->setting('defaultPages', false);
+                $code = 'default';
             break;
         }
+
+        if (!is_array($defaultPages)) {
+            
+            if ($code == 'default') {
+                $code = 500;
+            }
+
+            $response = $this->app->response($code, $code);
+            $this->app->prepareAndSend($response);
+        } else {
+
+            if (isset($defaultPages[$code])) {
+
+                $classToLoad = $defaultPages[$code];
+                $obj = new $classToLoad();
+                $return = $obj->get($this->app);
+
+                if (is_object($return)) {
+                    $this->prepareAndSend($return);
+                }
+
+            } else {
+
+                if ($code == 'default') {
+                    $code = 500;
+                }
+
+                $response = $this->app->response($code, $code);
+                $this->app->prepareAndSend($response);
+            }
+        }
+        exit();
     }
 
-    private function respondjson($code)
+    private function respondJson($code)
     {
         header('Content-Type: application/json; charset=UTF-8');
-        switch ($code){
+        switch ($code) {
             case '404':
                 header("HTTP/1.1 404 Page Not Found");
                 exit (json_encode('Resource not found'));
             break;
             case '500':
+            default:
                 header("HTTP/1.1 500 Internal Server Error");
                 exit (json_encode('Internal Server Error'));
             break;

@@ -32,13 +32,13 @@ class Application extends Pimple
 
         require APP_ROOT.'/app/config/beatrixSettingsPreload.php';
 
-        if (isset($this->settings['DIC'])) {
-            foreach ($this->settings['DIC'] as $part) {
+        if (isset($this->settings['DIC'])){
+            foreach ($this->settings['DIC'] as $part){
                 require APP_ROOT.'/'.$part['path'];
             }
         }
 
-        if (!isset($this->settings['cache.settings'])) {
+        if (!isset($this->settings['cache.settings'])){
             $this->settings['cache.settings'] = false;
         }
 
@@ -47,9 +47,27 @@ class Application extends Pimple
         try {
             $timezone = $this->setting('timezone');
             date_default_timezone_set($timezone);
-        } catch (\Exception $e) {}
+        } catch(\Exception $e) {}
 
-        if ($this->setting('env') === 'dev') {
+        /*
+            $pdo = $this['db']->getPdoHandle('mykidv2');
+            $dbHandler = new \Cangit\Beatrix\Monolog\PDOHandler($pdo);
+            $dbHandler->setTable('logUserException');
+            
+            $handle['extraFields'] = ['signInId' => 'src/model/user/logUserException.php'];
+            if (isset($handle['extraFields'])) {
+                foreach ($handle['extraFields'] as $key => $val) {
+                    require $val;
+                    $dbHandler->addField($key, $val);
+                }
+            }
+            
+            $formatter = new \Monolog\Formatter\JsonFormatter();
+            $dbHandler->setFormatter($formatter);
+            $this['logger']->pushHandler($dbHandler);
+        */
+
+        if ($this->setting('env') === 'dev'){
             $run = new \Whoops\Run();
             $handler = new \Whoops\Handler\PrettyPageHandler();
             $handler->setEditor('sublime');
@@ -67,8 +85,8 @@ class Application extends Pimple
             $run->pushHandler($handler);
             $run->pushHandler(function($exception, $inspector, $run) {
                 $frames = $inspector->getFrames();
-                foreach ($frames as $i => $frame) {
-                    if ($function = $frame->getFunction()) {
+                foreach($frames as $i => $frame) {
+                    if($function = $frame->getFunction()) {
                         $frame->addComment("'$function'", 'method/function');
                     }
                 }
@@ -76,7 +94,7 @@ class Application extends Pimple
             $run->pushHandler( function($exception){
                 $file = str_replace( APP_ROOT , "", $exception->getFile() );
 
-                switch ($exception->getCode()) {
+                switch ($exception->getCode()){
                     case E_ERROR:
                     case E_USER_ERROR:
                     case E_RECOVERABLE_ERROR:
@@ -114,9 +132,7 @@ class Application extends Pimple
                 }
 
             } );
-
             $run->register();
-
         } else {
             ErrorHandling::construct($this['logger']);
             set_error_handler( [ 'Cangit\\Beatrix\\ErrorHandling', 'errorHandler' ] );
@@ -153,10 +169,8 @@ class Application extends Pimple
     public function run()
     {
 
-        if (!is_readable(APP_ROOT.'/app/config/routes.yml')) {
-            if (is_object($this['logger'])) {
-                $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
-            }
+        if (!is_readable(APP_ROOT.'/app/config/routes.yml')){
+            $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
             $loadFail->run();
         } else {
@@ -167,9 +181,9 @@ class Application extends Pimple
             $collection->addCollection($loader->beatrixLoad('routes.yml', $this['cache'], $this->setting('cache.routes')));
 
             try{
-                if (is_array($routes = $this->setting('routes'))) {
-                    foreach ($routes as $route) {
-                        if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')) {
+                if (is_array($routes = $this->setting('routes'))){
+                    foreach($routes as $route){
+                        if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')){
                             $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/vendor/'.$route]);
                             $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
                             $collection->addCollection($loader->load('routes.yml'));
@@ -180,14 +194,14 @@ class Application extends Pimple
                 }
             } catch (\Exception $e) {}
 
-            try {
+            try{
 
                 $Context = new RequestContext($this['request']);
                 $matcher = new UrlMatcher($collection, $Context);
 
                 $attributes = $matcher->match($this['request']->getPathInfo());
                 $this['request']->attributes->add($attributes);
-                if (substr($attributes['_controller'], 0, 1) === '@') {
+                if (substr($attributes['_controller'], 0, 1) === '@'){
                     $controller = substr($attributes['_controller'], 1);
                 } else {
                     $controller = "controller\\".$attributes['_controller'];
@@ -197,10 +211,10 @@ class Application extends Pimple
                 $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 $loadFail = new LoadFail('404', $this);
                 $loadFail->debug(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
-                $loadFail->debug("We dumped the contents of <a title='Open in sublimeText' href='subl://open?url=file://".APP_ROOT."/app/config/routes.yml'>app/config/routes.yml</a> to make the debugging easier.\n\n==========");
+                $loadFail->debug("We dumped the contents of <a href='subl://open?url=file://".APP_ROOT."/app/config/routes.yml'>'app/config/routes.yml'</a> to make the debugging easier.\n\n==========");
                 $loadFail->debug(htmlentities(file_get_contents(APP_ROOT.'/app/config/routes.yml')));
                 $loadFail->run();
-            } catch (\InvalidArgumentException $e) {
+            } catch (\InvalidArgumentException $e){
                 $this['logger']->error('InvalidArgumentException thrown when trying to load resource: '.$this['request']->getPathInfo());
                 $loadFail = new LoadFail('500', $this);
                 $loadFail->run();
@@ -246,12 +260,12 @@ class Application extends Pimple
 
     private function createController($controller)
     {
-        if (!class_exists($controller)) {
+        if (!class_exists($controller)){
             $filePath = str_replace('\\', '/', $controller);
             $file = 'src/'.$filePath.'.php';
             $loadFail = new LoadFail('500', $this);
 
-            if (!file_exists($file)) {
+            if(!file_exists($file)){
                 $this['logger']->error(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
                 $loadFail->debug(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
             } else {
@@ -264,7 +278,7 @@ class Application extends Pimple
             $loadFail->run();
         }
 
-        if (method_exists($controller, '__construct')) {
+        if (method_exists($controller, '__construct')){
             $this->Controller = new $controller($this);
         } else {
             $this->Controller = new $controller();
@@ -274,14 +288,14 @@ class Application extends Pimple
 
     public function compileAllowHeaders($controller=null)
     {
-        if ($controller === null) {
+        if($controller === null){
             $controller = $this->Controller;
         }
 
         $methods = get_class_methods($controller);
         $options = '';
         
-        if (is_array($methods)) {
+        if (is_array($methods)){
             foreach ($methods as $method) {
                 $method = strtoupper($method);
                 if (in_array($method, ['GET', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT'])){
@@ -302,7 +316,7 @@ class Application extends Pimple
 
     public function initiateControllerMethod($requestMethod)
     {
-        switch ($requestMethod) {
+        switch ($requestMethod){
             case 'HEAD':
                 $requestMethod = 'GET';
             case 'GET':
@@ -311,12 +325,12 @@ class Application extends Pimple
             case 'DELETE':
             case 'TRACE':
             case 'CONNECT':
-                if (method_exists($this->Controller, $requestMethod)) {
+                if (method_exists($this->Controller, $requestMethod)){
                     $reflection = new \ReflectionMethod($this->Controller, $requestMethod);
                     $params = $reflection->getParameters();
                     $attr = [];
-                    foreach($params as $param) {
-                        switch($param->getName()) {
+                    foreach($params as $param){
+                        switch($param->getName()){
                             case 'app':
                                 $attr[] = $this;
                             break;
@@ -324,12 +338,12 @@ class Application extends Pimple
                                 throw new \Exception('Argument list is invalid.', E_ERROR);
                         }
                     }
-                    if ($params === []) {
+                    if ($params === []){
                         $responseObj = $this->Controller->$requestMethod();
                     } else {
                         $responseObj = $this->Controller->$requestMethod($attr[0]);
                     }
-                    if (is_object($responseObj)) {
+                    if (is_object($responseObj)){
                         $this['logger']->debug('Executed in '. number_format(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 4) . 's');
                         $this->prepareAndSend($responseObj);
                     }
@@ -340,7 +354,7 @@ class Application extends Pimple
                 }
             break;
             case 'OPTIONS':                
-                if (method_exists($this->Controller, 'OPTIONS')) {
+                if (method_exists($this->Controller, 'OPTIONS')){
                     $headers = $this->compileAllowHeaders();
                     $options = $this->Controller->OPTIONS();
                     $responseObj = $this->json($options, 200, $headers);
@@ -360,9 +374,19 @@ class Application extends Pimple
         $responseObj->prepare( $this['request'] )->send();
     }
 
+    public function debug($str='', $arr=[])
+    {
+        $report = [];
+        $report['time'] = number_format(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 4);
+        $report['memory'] = memory_get_usage();
+        $report['debug'] = $arr;
+
+        $this['logger']->debug('Profile '.$str, $report);
+    }
+
     public function setting($var, $default=null)
     {
-        if (isset($this->settings[$var])) {
+        if (isset($this->settings[$var])){
             return $this->settings[$var];
         } elseif (!is_string($var)) {
             throw new \InvalidArgumentException('Expected string, '.gettype($var).' given.', E_ERROR);

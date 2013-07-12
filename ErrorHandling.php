@@ -58,12 +58,9 @@ class ErrorHandling
             self::$logger->error('Exception', $error);
         }
         
-        if (is_readable('app/static/exception.php')){
-            require 'app/static/exception.php';
-        } else {
-            header('HTTP/1.1 500 Internal Server Error');
-            exit('Something broke, we are working to get it fixed. Please try to reload your browser.');
-        }
+        header('HTTP/1.1 500 Internal Server Error');
+        exit('Something awful happened, we are working to get it fixed. Please try to reload your browser.');
+        
     }
 
 }
