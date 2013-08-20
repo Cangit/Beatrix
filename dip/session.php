@@ -3,7 +3,7 @@
 
 $this['session'] = $this->share( function($c){
 
-    $settings = $c->setting('DIC')['session'];
+    $settings = $c->setting('factory')['session'];
 
     if (isset($settings['options'])){
         $options = $settings['options'];

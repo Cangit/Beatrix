@@ -5,7 +5,7 @@
 $this['logger'] = $this->share(function(){
     
     $monolog = new \Monolog\Logger( $this->setting('name') );
-    $settings = $this->setting('DIC')['logger'];
+    $settings = $this->setting('factory')['logger'];
 
     foreach ($settings['handlers'] as $handel){
         switch ($handel['type']){

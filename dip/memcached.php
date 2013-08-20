@@ -5,7 +5,7 @@
 $this['memcached'] = $this->share( function($c){
     $m = new \Memcached();
 
-    $settings = $c->setting('DIC')['memcached'];
+    $settings = $c->setting('factory')['memcached'];
 
     if (isset($settings['servers'])){
         foreach ($settings['servers'] as $server){

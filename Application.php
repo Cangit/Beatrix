@@ -17,12 +17,6 @@ class Application extends Pimple
     {
         parent::__construct();
 
-        /* Symfony UniversalClassLoader */
-        // http://symfony.com/doc/current/components/class_loader.html#usage
-        $this['classLoader'] = $this->share( function(){
-            return new \Symfony\Component\ClassLoader\UniversalClassLoader('beatrixClassLoader'); 
-        });
-
         /* Symfony HttpFoundation Request object */
         // http://symfony.com/doc/current/components/http_foundation/introduction.html#accessing-request-data
         $this['request'] = $this->share( function(){
@@ -30,56 +24,56 @@ class Application extends Pimple
             return \Symfony\Component\HttpFoundation\Request::createFromGlobals();
         });
 
-        require APP_ROOT.'/app/config/beatrixSettingsPreload.php';
-
-        if (isset($this->settings['DIC'])){
-            foreach ($this->settings['DIC'] as $part){
-                require APP_ROOT.'/'.$part['path'];
-            }
-        }
-
-        if (!isset($this->settings['cache.settings'])){
-            $this->settings['cache.settings'] = false;
-        }
-
-        $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml', $this->settings['cache.settings']));
-        
-        try {
-            $timezone = $this->setting('timezone');
-            date_default_timezone_set($timezone);
-        } catch(\Exception $e) {}
-
-        /*
-            $pdo = $this['db']->getPdoHandle('mykidv2');
-            $dbHandler = new \Cangit\Beatrix\Monolog\PDOHandler($pdo);
-            $dbHandler->setTable('logUserException');
+        if (file_exists(APP_ROOT.'/app/config/beatrixSettingsPreload.php') === false) {
             
-            $handle['extraFields'] = ['signInId' => 'src/model/user/logUserException.php'];
-            if (isset($handle['extraFields'])) {
-                foreach ($handle['extraFields'] as $key => $val) {
-                    require $val;
-                    $dbHandler->addField($key, $val);
+            if (file_exists(APP_ROOT.'/app/config/beatrix/settings.php') === false) {
+                exit("Site not availible. Please come back later.\n<br />Beatrix Construct Error: Could not locate any setting file(s).");
+            }
+
+            require APP_ROOT.'/app/config/beatrix/settings.php';
+
+            if (!isset($this->settings['cache'])) {
+                $this->settings['cache'] = false;
+            }
+
+            $mainFactoryBlueprint = $this['cache']->file('mainFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
+            $this->settings['factory'] = $mainFactoryBlueprint;
+            $this->settings['DIC'] = $this->settings['factory']; // BC, Old factory definitions used DIC.
+
+        } else {
+            /* BC - Pre 0.4 behavior. Break before 1.0 */
+            require APP_ROOT.'/app/config/beatrixSettingsPreload.php';
+            if (isset($this->settings['DIC'])) {
+                foreach ($this->settings['DIC'] as $part) {
+                    require APP_ROOT.'/'.$part['path'];
                 }
             }
-            
-            $formatter = new \Monolog\Formatter\JsonFormatter();
-            $dbHandler->setFormatter($formatter);
-            $this['logger']->pushHandler($dbHandler);
-        */
 
-        if ($this->setting('env') === 'dev'){
+            $this->settings['factory'] = $this->settings['DIC']; // FC, New objects will use factory instead of DIC.
+
+            if (!isset($this->settings['cache.settings'])) {
+                $this->settings['cache.settings'] = false;
+            }
+            
+            $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml', $this->settings['cache.settings']));
+        }
+
+
+        if (isset($this->settings['timezone']){
+            date_default_timezone_set($this->settings['timezone']);
+        }
+
+        if ($this->setting('env') === 'dev') {
             $run = new \Whoops\Run();
             $handler = new \Whoops\Handler\PrettyPageHandler();
             $handler->setEditor('sublime');
             $cache = var_export($this->setting('cache'), true);
-            $settings = var_export($this->setting('cache.settings'), true);
             $routes = var_export($this->setting('cache.routes'), true);
             $handler->addDataTable('Beatrix Settings', [
                 'Name' => $this->setting('name'),
                 'Environment' => $this->setting('env'),
                 'Cache' => $cache,
                 'Cache.interface' => $this->setting('cache.interface'),
-                'Cache.settings' => $settings,
                 'Cache.routes' => $routes
             ]);
             $run->pushHandler($handler);
@@ -142,13 +136,32 @@ class Application extends Pimple
         error_reporting(E_ALL);
     }
 
+    public function createFactory($id)
+    {
+        if (!is_string($id)) {
+            throw new \InvalidArgumentException(sprintf('Identifier "%s" is not string.', $id));
+        }
+
+        $factoryBlueprint = $this['cache']->file($id, $id, 'yml', $this->settings['cache']);
+        $factory = new Factory();
+        $factory->addBlueprints($factoryBlueprint);
+
+        return $factory;
+    }
+
     /* Loads object from path configuration in settings */
     public function loadIntoDIC($id)
     {
-        $ic = $this->setting('DIC');
+        if (isset($this->settings['DIC'])) {
+            /* BC - Pre 0.4 behavior. Break before 1.0 */
+            $factoryBlueprints = $this->setting('DIC');
+        } else {
+            /* New behavior */
+            $factoryBlueprints = $this->setting('factory');
+        }
         
-        if (isset($ic[$id]['path'])){
-            require APP_ROOT.'/'.$ic[$id]['path'];
+        if (isset($factoryBlueprints[$id]['path'])){
+            require APP_ROOT.'/'.$factoryBlueprints[$id]['path'];
         } else {
             throw new \InvalidArgumentException(sprintf('Identifier "%s" is not defined.', $id));
         }
@@ -173,6 +186,7 @@ class Application extends Pimple
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
             $loadFail->run();
+            return;
         } else {
 
             $collection = new RouteCollection();
@@ -180,19 +194,20 @@ class Application extends Pimple
             $loader = new YamlFileLoader($Locator);
             $collection->addCollection($loader->beatrixLoad('routes.yml', $this['cache'], $this->setting('cache.routes')));
 
-            try{
-                if (is_array($routes = $this->setting('routes'))){
-                    foreach($routes as $route){
-                        if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')){
-                            $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/vendor/'.$route]);
-                            $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
-                            $collection->addCollection($loader->load('routes.yml'));
-                        } else {
-                            $this['logger']->warning('Could not find routing file: '.APP_ROOT.'/vendor/'.$route.'routes.yml');
-                        }
+            if (isset($this->settings['routes']) && is_array($this->settings['routes']) ) {
+                
+                $routes = $this->settings['routes'];
+
+                foreach($routes as $route){
+                    if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')){
+                        $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/vendor/'.$route]);
+                        $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
+                        $collection->addCollection($loader->load('routes.yml'));
+                    } else {
+                        $this['logger']->warning('Could not find routing file: '.APP_ROOT.'/vendor/'.$route.'routes.yml');
                     }
                 }
-            } catch (\Exception $e) {}
+            }
 
             try{
 
@@ -214,17 +229,43 @@ class Application extends Pimple
                 $loadFail->debug("We dumped the contents of <a href='subl://open?url=file://".APP_ROOT."/app/config/routes.yml'>'app/config/routes.yml'</a> to make the debugging easier.\n\n==========");
                 $loadFail->debug(htmlentities(file_get_contents(APP_ROOT.'/app/config/routes.yml')));
                 $loadFail->run();
+                return;
             } catch (\InvalidArgumentException $e){
                 $this['logger']->error('InvalidArgumentException thrown when trying to load resource: '.$this['request']->getPathInfo());
                 $loadFail = new LoadFail('500', $this);
                 $loadFail->run();
+                return;
             } catch (\Exception $e) {
                 $this['logger']->error('Exception thrown when trying to load resource. Probably syntax error in routes.yml file.');
                 $loadFail = new LoadFail('500', $this);
                 $loadFail->run();
+                return;
             }
 
-            $this->createController($controller);
+            if (!class_exists($controller)) {
+                $filePath = str_replace('\\', '/', $controller);
+                $file = 'src/'.$filePath.'.php';
+                $loadFail = new LoadFail('500', $this);
+
+                if(!file_exists($file)){
+                    $this['logger']->error(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
+                    $loadFail->debug(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
+                } else {
+                    $this['logger']->error(sprintf('Could not find controller "%s()" in file "%s", malformed namespace or classname.', $controller, $file));
+                    $loadFail->debug(sprintf("Could not find controller '%s()' in file '%s'.\nMalformed namespace or classname.", $controller, $file));
+                    $loadFail->debug(sprintf("We dumped the contents of '%s' to make the debugging easier.\n\n==========", $file));
+                    $loadFail->debug(htmlentities(file_get_contents($file)));
+                }
+
+                $loadFail->run();
+                return;
+            }
+
+            if (method_exists($controller, '__construct')) {
+                $this->Controller = new $controller($this);
+            } else {
+                $this->Controller = new $controller();
+            }
 
         }
 
@@ -256,34 +297,6 @@ class Application extends Pimple
     public function sendFile($file, $status = 200, $headers = [], $contentDisposition = null)
     {
         return new \Symfony\Component\HttpFoundation\BinaryFileResponse($file, $status, $headers, true, $contentDisposition);
-    }
-
-    private function createController($controller)
-    {
-        if (!class_exists($controller)){
-            $filePath = str_replace('\\', '/', $controller);
-            $file = 'src/'.$filePath.'.php';
-            $loadFail = new LoadFail('500', $this);
-
-            if(!file_exists($file)){
-                $this['logger']->error(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
-                $loadFail->debug(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
-            } else {
-                $this['logger']->error(sprintf('Could not find controller "%s()" in file "%s", malformed namespace or classname.', $controller, $file));
-                $loadFail->debug(sprintf("Could not find controller '%s()' in file '%s'.\nMalformed namespace or classname.", $controller, $file));
-                $loadFail->debug(sprintf("We dumped the contents of '%s' to make the debugging easier.\n\n==========", $file));
-                $loadFail->debug(htmlentities(file_get_contents($file)));
-            }
-
-            $loadFail->run();
-        }
-
-        if (method_exists($controller, '__construct')){
-            $this->Controller = new $controller($this);
-        } else {
-            $this->Controller = new $controller();
-        }
-        
     }
 
     public function compileAllowHeaders($controller=null)

@@ -93,7 +93,6 @@ class LoadFail
                 $this->app->prepareAndSend($response);
             }
         }
-        exit();
     }
 
     private function respondJson($code)
