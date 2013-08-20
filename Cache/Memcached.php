@@ -21,7 +21,8 @@ class Memcached implements CacheInterface
                 return true;
             }
         } else {
-            if ($this->memcachedObj->delete($id)){
+            $crc32id = crc32id($id);
+            if ($this->memcachedObj->delete($crc32id)){
                 return true;
             }
         }
@@ -35,12 +36,18 @@ class Memcached implements CacheInterface
             throw new \InvalidArgumentException('Expected string as first parameter.', E_ERROR);
         }
 
-        $memcachedValue = $this->memcachedObj->get($id);
+        $crc32id = crc32($id);
+
+        $memcachedValue = $this->memcachedObj->get($crc32id);
 
         if ($this->memcachedObj->getResultCode() != \Memcached::RES_NOTFOUND) {
             if ($readCache === true && $this->settingCache === true){
                 return $memcachedValue;
             }
+        }
+
+        if (!file_exists($file)) {
+            throw new \Exception('Requested file could not be found. '.$file);
         }
 
         switch ($format){
@@ -52,7 +59,7 @@ class Memcached implements CacheInterface
         }
 
         if ($writeCache === true && $this->settingCache === true){
-            $this->memcachedObj->set($id, $data);
+            $this->memcachedObj->set($crc32id, $data);
         }
 
         return $data;
