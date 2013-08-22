@@ -27,16 +27,22 @@ class Application extends Pimple
         if (file_exists(APP_ROOT.'/app/config/beatrixSettingsPreload.php') === false) {
             
             if (file_exists(APP_ROOT.'/app/config/beatrix/settings.php') === false) {
-                exit("Site not availible. Please come back later.\n<br />Beatrix Construct Error: Could not locate any setting file(s).");
+                exit("Application is not installed correctly. Error: Could not locate any setting file(s).");
             }
+            
+            $defaultSettings = [
+                'name' => 'MyCoolApp',
+                'cache.interface' => 'none',
+                'cache.routes' => false,
+                'cache' => false,
+                'env' => 'prod'
+            ];
 
             require APP_ROOT.'/app/config/beatrix/settings.php';
 
-            if (!isset($this->settings['cache'])) {
-                $this->settings['cache'] = false;
-            }
+            $this->settings = array_merge($defaultSettings, $this->settings);
 
-            $mainFactoryBlueprint = $this['cache']->file('mainFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
+            $mainFactoryBlueprint = $this['cache']->file('BeatrixFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
             $this->settings['factory'] = $mainFactoryBlueprint;
             $this->settings['DIC'] = $this->settings['factory']; // BC, Old factory definitions used DIC.
 
@@ -58,82 +64,24 @@ class Application extends Pimple
             $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml', $this->settings['cache.settings']));
         }
 
-
-        if (isset($this->settings['timezone']){
+        if (isset($this->settings['timezone'])) {
             date_default_timezone_set($this->settings['timezone']);
         }
 
+        if ($this->setting('env') === 'prod') {
+            if (file_exists(APP_ROOT.'/app/config/beatrix/prodAutoexecute.php')) {
+                require APP_ROOT.'/app/config/beatrix/prodAutoexecute.php';
+            }
+        }
+
         if ($this->setting('env') === 'dev') {
-            $run = new \Whoops\Run();
-            $handler = new \Whoops\Handler\PrettyPageHandler();
-            $handler->setEditor('sublime');
-            $cache = var_export($this->setting('cache'), true);
-            $routes = var_export($this->setting('cache.routes'), true);
-            $handler->addDataTable('Beatrix Settings', [
-                'Name' => $this->setting('name'),
-                'Environment' => $this->setting('env'),
-                'Cache' => $cache,
-                'Cache.interface' => $this->setting('cache.interface'),
-                'Cache.routes' => $routes
-            ]);
-            $run->pushHandler($handler);
-            $run->pushHandler(function($exception, $inspector, $run) {
-                $frames = $inspector->getFrames();
-                foreach($frames as $i => $frame) {
-                    if($function = $frame->getFunction()) {
-                        $frame->addComment("'$function'", 'method/function');
-                    }
-                }
-            });
-            $run->pushHandler( function($exception){
-                $file = str_replace( APP_ROOT , "", $exception->getFile() );
-
-                switch ($exception->getCode()){
-                    case E_ERROR:
-                    case E_USER_ERROR:
-                    case E_RECOVERABLE_ERROR:
-                        $type = 'error';
-                    break;
-                    case E_WARNING:
-                    case E_USER_WARNING:
-                        $type = 'warning';
-                    break;
-                    case E_NOTICE:
-                    case E_USER_NOTICE:
-                        $type = 'notice';
-                    break;
-                    case E_DEPRECATED:
-                    case E_USER_DEPRECATED:
-                        $type = 'deprecated';
-                    break;
-                    default:
-                        $type = 'unknown';
-                }
-
-                $error = [
-                    'code' => $exception->getCode(),
-                    'type' => $type,
-                    'msg' => $exception->getMessage(),
-                    'file' => $file,
-                    'line' => $exception->getLine(),
-                    'trace' => $exception->getTrace()
-                ];
-
-                if (method_exists($this['logger'], $type)){
-                    $this['logger']->$type('Exception', $error);
-                } else {
-                    $this['logger']->error('Exception', $error);
-                }
-
-            } );
-            $run->register();
-        } else {
-            ErrorHandling::construct($this['logger']);
-            set_error_handler( [ 'Cangit\\Beatrix\\ErrorHandling', 'errorHandler' ] );
-            set_exception_handler( ['Cangit\\Beatrix\\ErrorHandling', 'exceptionHandler'] );
+            if (file_exists(APP_ROOT.'/app/config/beatrix/devAutoexecute.php')) {
+                require APP_ROOT.'/app/config/beatrix/devAutoexecute.php';
+            }
         }
 
         error_reporting(E_ALL);
+
     }
 
     public function createFactory($id)
