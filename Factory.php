@@ -2,7 +2,7 @@
 
 namespace Cangit\Beatrix;
 
-class Factory extends Pimple
+class Factory extends \Pimple
 {
 
     private $blueprints = [];
