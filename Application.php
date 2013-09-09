@@ -7,7 +7,7 @@ use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Routing\Route;
 
-class Application extends Pimple
+class Application extends \Pimple
 {
 
     private $settings;
@@ -23,46 +23,26 @@ class Application extends Pimple
             \Symfony\Component\HttpFoundation\Request::enableHttpMethodParameterOverride();
             return \Symfony\Component\HttpFoundation\Request::createFromGlobals();
         });
-
-        if (file_exists(APP_ROOT.'/app/config/beatrixSettingsPreload.php') === false) {
             
-            if (file_exists(APP_ROOT.'/app/config/beatrix/settings.php') === false) {
-                exit("Application is not installed correctly. Error: Could not locate any setting file(s).");
-            }
-            
-            $defaultSettings = [
-                'name' => 'MyCoolApp',
-                'cache.interface' => 'none',
-                'cache.routes' => false,
-                'cache' => false,
-                'env' => 'prod'
-            ];
-
-            require APP_ROOT.'/app/config/beatrix/settings.php';
-
-            $this->settings = array_merge($defaultSettings, $this->settings);
-
-            $mainFactoryBlueprint = $this['cache']->file('BeatrixFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
-            $this->settings['factory'] = $mainFactoryBlueprint;
-            $this->settings['DIC'] = $this->settings['factory']; // BC, Old factory definitions used DIC.
-
-        } else {
-            /* BC - Pre 0.4 behavior. Break before 1.0 */
-            require APP_ROOT.'/app/config/beatrixSettingsPreload.php';
-            if (isset($this->settings['DIC'])) {
-                foreach ($this->settings['DIC'] as $part) {
-                    require APP_ROOT.'/'.$part['path'];
-                }
-            }
-
-            $this->settings['factory'] = $this->settings['DIC']; // FC, New objects will use factory instead of DIC.
-
-            if (!isset($this->settings['cache.settings'])) {
-                $this->settings['cache.settings'] = false;
-            }
-            
-            $this->settings = array_merge_recursive($this->settings, $this['cache']->file('beatrixSettings', APP_ROOT.'/app/config/beatrixSettings.yml', 'yml', $this->settings['cache.settings']));
+        if (file_exists(APP_ROOT.'/app/config/beatrix/settings.php') === false) {
+            exit("Application is not installed correctly. Error: Could not locate any setting file(s).");
         }
+        
+        $defaultSettings = [
+            'name' => 'Beatrix',
+            'cache.interface' => 'none',
+            'cache.routes' => false,
+            'cache' => false,
+            'env' => 'prod'
+        ];
+
+        require APP_ROOT.'/app/config/beatrix/settings.php';
+
+        $this->settings = array_merge($defaultSettings, $this->settings);
+
+        $mainFactoryBlueprint = $this['cache']->file('BeatrixFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
+        $this->settings['factory'] = $mainFactoryBlueprint;
+        $this->settings['DIC'] = $this->settings['factory']; // BC, Old factory definitions used DIC.
 
         if (isset($this->settings['timezone'])) {
             date_default_timezone_set($this->settings['timezone']);
@@ -70,13 +50,21 @@ class Application extends Pimple
 
         if ($this->setting('env') === 'prod') {
             if (file_exists(APP_ROOT.'/app/config/beatrix/prodAutoexecute.php')) {
-                require APP_ROOT.'/app/config/beatrix/prodAutoexecute.php';
+                try {
+                    require APP_ROOT.'/app/config/beatrix/prodAutoexecute.php';
+                } catch (\Exception $e) {
+                    $this['logger']->warning('Catchable error in /app/config/beatrix/prodAutoexecute.php');
+                }
             }
         }
 
         if ($this->setting('env') === 'dev') {
             if (file_exists(APP_ROOT.'/app/config/beatrix/devAutoexecute.php')) {
-                require APP_ROOT.'/app/config/beatrix/devAutoexecute.php';
+                try {
+                    require APP_ROOT.'/app/config/beatrix/devAutoexecute.php';
+                } catch (\Exception $e) {
+                    $this['logger']->warning('Catchable error in /app/config/beatrix/devAutoexecute.php');
+                }
             }
         }
 
@@ -129,7 +117,38 @@ class Application extends Pimple
 
     public function run()
     {
+        if (isset($this->settings['maintenance'])) {
 
+            if ($this->settings['maintenance'] === true) {
+
+                $this['logger']->info('Site is in maintenance mode.');
+                $maintenanceWorkers = $this->settings['maintenanceWorkers'];
+
+                if (!in_array($_SERVER['REMOTE_ADDR'], $maintenanceWorkers)) {
+                    $controller = '\\'.$this->settings['defaultPages']['maintenance'];
+
+                    if (!class_exists($controller)) {
+                        $this['logger']->warning('Could not locate/read maintenance controller defined in /app/config/beatrix/settings.php');
+                        $loadFail = new LoadFail('500', $this);
+                        $loadFail->run();
+                        return;
+                    }
+                    
+                    if (method_exists($controller, '__construct')) {
+                        $this->Controller = new $controller($this);
+                    } else {
+                        $this->Controller = new $controller();
+                    }
+
+                    $requestMethod = $this['request']->getMethod();
+                    $this->initiateControllerMethod($requestMethod);
+                    return;
+                }
+
+            }
+        
+        }
+        
         if (!is_readable(APP_ROOT.'/app/config/routes.yml')){
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
@@ -146,7 +165,7 @@ class Application extends Pimple
                 
                 $routes = $this->settings['routes'];
 
-                foreach($routes as $route){
+                foreach ($routes as $route){
                     if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')){
                         $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/vendor/'.$route]);
                         $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
@@ -157,7 +176,7 @@ class Application extends Pimple
                 }
             }
 
-            try{
+            try {
 
                 $Context = new RequestContext($this['request']);
                 $matcher = new UrlMatcher($collection, $Context);

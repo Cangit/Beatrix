@@ -10,6 +10,10 @@ class APCu implements CacheInterface
     public function __construct($settingCache=false)
     {
         $this->settingCache = $settingCache;
+
+        if (!function_exists('apcu_exists')) {
+            exit ('APCu is not installed on this server. Remove APCu-configuration from settings file or install APCu.');
+        }
     }
 
     public function clear($id = null)
