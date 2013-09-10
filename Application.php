@@ -6,6 +6,7 @@ use Symfony\Component\Routing\Matcher\UrlMatcher;
 use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Routing\Route;
+use Symfony\Component\Config\FileLocator;
 
 class Application extends \Pimple
 {
@@ -23,7 +24,7 @@ class Application extends \Pimple
             \Symfony\Component\HttpFoundation\Request::enableHttpMethodParameterOverride();
             return \Symfony\Component\HttpFoundation\Request::createFromGlobals();
         });
-            
+        
         if (file_exists(APP_ROOT.'/app/config/beatrix/settings.php') === false) {
             exit("Application is not installed correctly. Error: Could not locate any setting file(s).");
         }
@@ -40,8 +41,7 @@ class Application extends \Pimple
 
         $this->settings = array_merge($defaultSettings, $this->settings);
 
-        $mainFactoryBlueprint = $this['cache']->file('BeatrixFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
-        $this->settings['factory'] = $mainFactoryBlueprint;
+        $this->settings['factory'] = $this['cache']->file('BeatrixFactory', APP_ROOT.'/app/config/beatrix/factoryDefinitions.yml', 'yml', $this->settings['cache']);
         $this->settings['DIC'] = $this->settings['factory']; // BC, Old factory definitions used DIC.
 
         if (isset($this->settings['timezone'])) {
@@ -88,18 +88,14 @@ class Application extends \Pimple
     /* Loads object from path configuration in settings */
     public function loadIntoDIC($id)
     {
-        if (isset($this->settings['DIC'])) {
-            /* BC - Pre 0.4 behavior. Break before 1.0 */
-            $factoryBlueprints = $this->setting('DIC');
-        } else {
-            /* New behavior */
+        if (isset($this->settings['factory'])) {
             $factoryBlueprints = $this->setting('factory');
         }
         
         if (isset($factoryBlueprints[$id]['path'])){
             require APP_ROOT.'/'.$factoryBlueprints[$id]['path'];
         } else {
-            throw new \InvalidArgumentException(sprintf('Identifier "%s" is not defined.', $id));
+            throw new \InvalidArgumentException(sprintf('Blueprint identifier "%s" does not have a "path" defined.', $id));
         }
     }
 
@@ -149,7 +145,7 @@ class Application extends \Pimple
         
         }
         
-        if (!is_readable(APP_ROOT.'/app/config/routes.yml')){
+        if (!is_readable(APP_ROOT.'/app/config/routes.yml')) {
             $this['logger']->warning('Could not locate/read routes file. Looked for app/config/routes.yml');
             $loadFail = new LoadFail('500', $this);
             $loadFail->run();
@@ -157,7 +153,7 @@ class Application extends \Pimple
         } else {
 
             $collection = new RouteCollection();
-            $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/app/config']);
+            $Locator = new FileLocator([APP_ROOT.'/app/config']);
             $loader = new YamlFileLoader($Locator);
             $collection->addCollection($loader->beatrixLoad('routes.yml', $this['cache'], $this->setting('cache.routes')));
 
@@ -167,7 +163,7 @@ class Application extends \Pimple
 
                 foreach ($routes as $route){
                     if (is_file(APP_ROOT.'/vendor/'.$route.'routes.yml')){
-                        $Locator = new \Symfony\Component\Config\FileLocator([APP_ROOT.'/vendor/'.$route]);
+                        $Locator = new FileLocator([APP_ROOT.'/vendor/'.$route]);
                         $loader = new \Symfony\Component\Routing\Loader\YamlFileLoader($Locator);
                         $collection->addCollection($loader->load('routes.yml'));
                     } else {
@@ -192,9 +188,6 @@ class Application extends \Pimple
             } catch (\Symfony\Component\Routing\Exception\ResourceNotFoundException $e) {
                 $this['logger']->info(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
                 $loadFail = new LoadFail('404', $this);
-                $loadFail->debug(sprintf('Did not find a route matching input "%s", using app/config/routes.yml', $this['request']->getPathInfo()));
-                $loadFail->debug("We dumped the contents of <a href='subl://open?url=file://".APP_ROOT."/app/config/routes.yml'>'app/config/routes.yml'</a> to make the debugging easier.\n\n==========");
-                $loadFail->debug(htmlentities(file_get_contents(APP_ROOT.'/app/config/routes.yml')));
                 $loadFail->run();
                 return;
             } catch (\InvalidArgumentException $e){
@@ -216,12 +209,8 @@ class Application extends \Pimple
 
                 if(!file_exists($file)){
                     $this['logger']->error(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
-                    $loadFail->debug(sprintf('The file "%s" could not be found when trying to run controller "%s()".', $file, $controller));
                 } else {
                     $this['logger']->error(sprintf('Could not find controller "%s()" in file "%s", malformed namespace or classname.', $controller, $file));
-                    $loadFail->debug(sprintf("Could not find controller '%s()' in file '%s'.\nMalformed namespace or classname.", $controller, $file));
-                    $loadFail->debug(sprintf("We dumped the contents of '%s' to make the debugging easier.\n\n==========", $file));
-                    $loadFail->debug(htmlentities(file_get_contents($file)));
                 }
 
                 $loadFail->run();
