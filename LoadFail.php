@@ -80,7 +80,7 @@ class LoadFail
                 $return = $obj->get($this->app);
 
                 if (is_object($return)) {
-                    $this->prepareAndSend($return);
+                    $this->app->prepareAndSend($return);
                 }
 
             } else {

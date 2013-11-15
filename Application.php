@@ -7,6 +7,7 @@ use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\HttpFoundation\Request;
 
 class Application extends \Pimple
 {
@@ -20,13 +21,13 @@ class Application extends \Pimple
 
         /* Symfony HttpFoundation Request object */
         // http://symfony.com/doc/current/components/http_foundation/introduction.html#accessing-request-data
-        $this['request'] = $this->share( function(){
-            \Symfony\Component\HttpFoundation\Request::enableHttpMethodParameterOverride();
-            return \Symfony\Component\HttpFoundation\Request::createFromGlobals();
+        $this['request'] = $this->share( function() {
+            Request::enableHttpMethodParameterOverride();
+            return Request::createFromGlobals();
         });
         
         if (file_exists(APP_ROOT.'/app/config/beatrix/settings.php') === false) {
-            exit("Application is not installed correctly. Error: Could not locate any setting file(s).");
+            exit("Application is not installed correctly. Error: Could not locate setting.php file.");
         }
         
         $defaultSettings = [
